@@ -14,8 +14,8 @@ HOLD_DAYS = 1
 # Train/Test split
 TRAIN_END_PCT = 0.7  # 70% train, 30% test (chronological split)
 
-# Benchmark tickers
-BENCHMARK_CANDIDATES = ["VV", "VONE", "SPY"]  # Added SPY for market hedge
+# Benchmark tickers (in order of preference)
+BENCHMARK_CANDIDATES = ["SPY", "VV", "VONE"]  # SPY has longest history (1993+)
 
 # Output
 OUTPUT_DIR = "./output"

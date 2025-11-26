@@ -45,7 +45,7 @@ Week x:
 
 ![Test Performance](examples/cumulative_returns_comparison_test.png)
 
-The strategy consistently outperforms the market benchmark (VV) in the out-of-sample test period.
+The strategy consistently outperforms the SPY benchmark (S&P 500) in both training and test periods.
 
 ## 🏗️ Architecture
 
