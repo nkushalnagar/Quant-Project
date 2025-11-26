@@ -63,6 +63,35 @@ def add_leader_hedges(positions, mapping):
     return positions_hedged
 
 
+def add_market_hedge(positions, direction=-1, weight=1.0, market_ticker='SPY'):
+    """
+    Add market hedge (long or short SPY) to portfolio.
+    
+    Args:
+        positions: DataFrame of positions (date x ticker)
+        direction: -1 for short (market neutral), +1 for long (add market beta)
+        weight: Weight of market hedge relative to portfolio (1.0 = dollar-neutral)
+        market_ticker: Ticker to use for market hedge (default: SPY)
+    
+    Returns:
+        DataFrame with market hedge added
+    """
+    # Add SPY column if not present
+    if market_ticker not in positions.columns:
+        positions[market_ticker] = 0.0
+    
+    # Calculate total gross exposure for each date
+    for date in positions.index:
+        gross_exposure = positions.loc[date].abs().sum()
+        
+        # Add market hedge: direction * weight * gross_exposure
+        # If short SPY (direction=-1), this creates market-neutral portfolio
+        # If long SPY (direction=+1), this adds market beta
+        positions.loc[date, market_ticker] = direction * weight * gross_exposure
+    
+    return positions
+
+
 def estimate_covariance_matrix(ret_p, lookback=60, shrinkage=0.1):
     """Estimate covariance matrix with shrinkage."""
     cov_dict = {}

@@ -12,16 +12,19 @@ TRANSACTION_COST_BPS_PER_SIDE = 0.0
 HOLD_DAYS = 1
 
 # Train/Test split
-TRAIN_END_PCT = 0.3  # 30% train, 70% test
+TRAIN_END_PCT = 0.7  # 70% train, 30% test (chronological split)
 
 # Benchmark tickers
-BENCHMARK_CANDIDATES = ["VV", "VONE"]
+BENCHMARK_CANDIDATES = ["VV", "VONE", "SPY"]  # Added SPY for market hedge
 
 # Output
 OUTPUT_DIR = "./output"
 
 # Strategy variant
 USE_LEADER_HEDGE = True  # If True, hedge followers by shorting their leaders (pairs trade)
+USE_MARKET_HEDGE = False  # If True, add market hedge (SPY)
+MARKET_HEDGE_DIRECTION = 1  # -1 for short SPY (market neutral), +1 for long SPY (market beta)
+MARKET_HEDGE_WEIGHT = 1.0  # Weight of market hedge relative to portfolio (1.0 = dollar-neutral)
 
 
 def get_leader_follower_mapping():

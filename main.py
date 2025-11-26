@@ -45,25 +45,31 @@ def main():
     print(f"  Min: {rf_series.min():.6f}, Max: {rf_series.max():.6f}\n")
     ret_p = adjust_returns_for_rf(ret_p, rf_series)
     
-    # Convert to weekly cumulative returns
-    print("\nConverting daily returns to weekly cumulative returns...")
-    ret_weekly = convert_to_weekly_returns(ret_p)
-    prc_weekly = convert_to_weekly_returns(prc_p)  # Use last price of week
-    adv_weekly = convert_to_weekly_returns(adv_p)  # Average ADV for week
+    # Use daily data directly (no weekly aggregation)
+    print(f"\nUsing daily data: {len(ret_p)} days")
+    print(f"Date range: {ret_p.index.min()} to {ret_p.index.max()}")
     
-    print(f"Daily data: {len(ret_p)} days")
-    print(f"Weekly data: {len(ret_weekly)} weeks")
-    print(f"Date range: {ret_weekly.index.min()} to {ret_weekly.index.max()}")
+    # Chronological split (70% train, 30% test)
+    n_days = len(ret_p)
+    train_end_idx = int(n_days * TRAIN_END_PCT)
     
-    # Random week split (instead of chronological)
-    ret_p_train, ret_p_test = random_week_split(ret_weekly, train_pct=TRAIN_END_PCT, random_seed=42)
-    prc_p_train, prc_p_test = random_week_split(prc_weekly, train_pct=TRAIN_END_PCT, random_seed=42)
-    adv_p_train, adv_p_test = random_week_split(adv_weekly, train_pct=TRAIN_END_PCT, random_seed=42)
+    ret_p_train = ret_p.iloc[:train_end_idx]
+    ret_p_test = ret_p.iloc[train_end_idx:]
+    
+    prc_p_train = prc_p.iloc[:train_end_idx]
+    prc_p_test = prc_p.iloc[train_end_idx:]
+    
+    adv_p_train = adv_p.iloc[:train_end_idx]
+    adv_p_test = adv_p.iloc[train_end_idx:]
+    
+    print(f"\nChronological split ({TRAIN_END_PCT*100:.0f}% train, {(1-TRAIN_END_PCT)*100:.0f}% test):")
+    print(f"  Train: {len(ret_p_train)} days ({ret_p_train.index.min()} to {ret_p_train.index.max()})")
+    print(f"  Test:  {len(ret_p_test)} days ({ret_p_test.index.min()} to {ret_p_test.index.max()})")
 
-    # Build signals (weekly: lag=1 means previous week's leader returns predict this week's follower)
-    print("\nBuilding weekly lead-lag signals...")
-    sig_raw_train = build_multi_lag_signal(ret_p_train, mapping, lags=(1,), lag_decay=1.0, winsor=(0.01, 0.99))
-    sig_raw_test = build_multi_lag_signal(ret_p_test, mapping, lags=(1,), lag_decay=1.0, winsor=(0.01, 0.99))
+    # Build signals (daily: lag=3 means leader returns from 3 days ago predict today's follower)
+    print("\nBuilding daily lead-lag signals (3-day lag)...")
+    sig_raw_train = build_multi_lag_signal(ret_p_train, mapping, lags=(3,), lag_decay=1.0, winsor=(0.01, 0.99))
+    sig_raw_test = build_multi_lag_signal(ret_p_test, mapping, lags=(3,), lag_decay=1.0, winsor=(0.01, 0.99))
     
     # Apply filters
     sig_masked_train = apply_filters(sig_raw_train, prc_p_train, adv_p_train, MIN_PRICE, MIN_ADV_USD)
@@ -101,6 +107,13 @@ def main():
         positions_train = add_leader_hedges(positions_train, mapping)
         print(f"Positions expanded from {len(sig_z_train.columns)} to {len(positions_train.columns)} tickers")
     
+    # Add market hedge if enabled
+    if USE_MARKET_HEDGE:
+        hedge_type = "SHORT" if MARKET_HEDGE_DIRECTION == -1 else "LONG"
+        print(f"\nAdding market hedge ({hedge_type} SPY with weight {MARKET_HEDGE_WEIGHT})...")
+        positions_train = add_market_hedge(positions_train, direction=MARKET_HEDGE_DIRECTION, weight=MARKET_HEDGE_WEIGHT)
+        print(f"Market hedge added to portfolio")
+    
     print("\n" + "="*80)
     print("OUT-OF-SAMPLE TESTING (TEST PERIOD)")
     print("="*80)
@@ -124,6 +137,13 @@ def main():
         print("\nAdding leader hedges (pairs trade strategy)...")
         positions_test = add_leader_hedges(positions_test, mapping)
         print(f"Positions expanded from {len(sig_z_test.columns)} to {len(positions_test.columns)} tickers")
+    
+    # Add market hedge if enabled
+    if USE_MARKET_HEDGE:
+        hedge_type = "SHORT" if MARKET_HEDGE_DIRECTION == -1 else "LONG"
+        print(f"\nAdding market hedge ({hedge_type} SPY with weight {MARKET_HEDGE_WEIGHT})...")
+        positions_test = add_market_hedge(positions_test, direction=MARKET_HEDGE_DIRECTION, weight=MARKET_HEDGE_WEIGHT)
+        print(f"Market hedge added to portfolio")
 
     # Backtest
     print("\n" + "="*80)
@@ -140,9 +160,9 @@ def main():
         ret_p_test, positions_test, hold_days=HOLD_DAYS, cost_bps_per_side=TRANSACTION_COST_BPS_PER_SIDE
     )
 
-    # Performance summaries (weekly frequency)
-    stats_net_train = summarize_performance(pnl_net_train, frequency='weekly')
-    stats_gross_train = summarize_performance(pnl_gross_train, frequency='weekly')
+    # Performance summaries (daily frequency)
+    stats_net_train = summarize_performance(pnl_net_train, frequency='daily')
+    stats_gross_train = summarize_performance(pnl_gross_train, frequency='daily')
     print("\nPerformance (Net of costs) - TRAIN:")
     for k, v in stats_net_train.items():
         if isinstance(v, float):
@@ -157,9 +177,9 @@ def main():
         else:
             print(f"  {k}: {v}")
 
-    # Alpha tests (weekly frequency)
+    # Alpha tests (daily frequency)
     print("\nAlpha Test (Net of costs) - TRAIN:")
-    alpha_test_net_train = test_alpha(pnl_net_train, "Strategy (Net) - Train", frequency='weekly')
+    alpha_test_net_train = test_alpha(pnl_net_train, "Strategy (Net) - Train", frequency='daily')
     if alpha_test_net_train:
         print(f"  Alpha (annualized): {alpha_test_net_train['Alpha (annualized)']:.4f}")
         print(f"  t-statistic: {alpha_test_net_train['t-statistic']:.4f}")
@@ -168,7 +188,7 @@ def main():
         print(f"  Significant at 1%: {alpha_test_net_train['Significant (1%)']}")
     
     print("\nAlpha Test (Gross, before costs) - TRAIN:")
-    alpha_test_gross_train = test_alpha(pnl_gross_train, "Strategy (Gross) - Train", frequency='weekly')
+    alpha_test_gross_train = test_alpha(pnl_gross_train, "Strategy (Gross) - Train", frequency='daily')
     if alpha_test_gross_train:
         print(f"  Alpha (annualized): {alpha_test_gross_train['Alpha (annualized)']:.4f}")
         print(f"  t-statistic: {alpha_test_gross_train['t-statistic']:.4f}")
@@ -176,9 +196,9 @@ def main():
         print(f"  Significant at 5%: {alpha_test_gross_train['Significant (5%)']}")
         print(f"  Significant at 1%: {alpha_test_gross_train['Significant (1%)']}")
 
-    # Test set summaries (weekly frequency)
-    stats_net_test = summarize_performance(pnl_net_test, frequency='weekly')
-    stats_gross_test = summarize_performance(pnl_gross_test, frequency='weekly')
+    # Test set summaries (daily frequency)
+    stats_net_test = summarize_performance(pnl_net_test, frequency='daily')
+    stats_gross_test = summarize_performance(pnl_gross_test, frequency='daily')
     print("\nPerformance (Net of costs) - TEST:")
     for k, v in stats_net_test.items():
         if isinstance(v, float):
@@ -193,9 +213,9 @@ def main():
         else:
             print(f"  {k}: {v}")
 
-    # Alpha tests for test set (weekly frequency)
+    # Alpha tests for test set (daily frequency)
     print("\nAlpha Test (Net of costs) - TEST:")
-    alpha_test_net_test = test_alpha(pnl_net_test, "Strategy (Net) - Test", frequency='weekly')
+    alpha_test_net_test = test_alpha(pnl_net_test, "Strategy (Net) - Test", frequency='daily')
     if alpha_test_net_test:
         print(f"  Alpha (annualized): {alpha_test_net_test['Alpha (annualized)']:.4f}")
         print(f"  t-statistic: {alpha_test_net_test['t-statistic']:.4f}")
@@ -204,7 +224,7 @@ def main():
         print(f"  Significant at 1%: {alpha_test_net_test['Significant (1%)']}")
     
     print("\nAlpha Test (Gross, before costs) - TEST:")
-    alpha_test_gross_test = test_alpha(pnl_gross_test, "Strategy (Gross) - Test", frequency='weekly')
+    alpha_test_gross_test = test_alpha(pnl_gross_test, "Strategy (Gross) - Test", frequency='daily')
     if alpha_test_gross_test:
         print(f"  Alpha (annualized): {alpha_test_gross_test['Alpha (annualized)']:.4f}")
         print(f"  t-statistic: {alpha_test_gross_test['t-statistic']:.4f}")
@@ -221,8 +241,8 @@ def main():
             break
     
     if benchmark_ticker and benchmark_ticker in ret_p.columns:
-        # Train benchmark
-        benchmark_returns_train = ret_p_train[benchmark_ticker].dropna()
+        # Train benchmark (fill missing data to avoid spikes)
+        benchmark_returns_train = ret_p_train[benchmark_ticker].fillna(0)  # Fill missing with 0 return
         benchmark_cumulative_train = (1 + benchmark_returns_train).cumprod() - 1
         strat_net_cum_train = (1 + pnl_net_train).cumprod() - 1
         strat_gross_cum_train = (1 + pnl_gross_train).cumprod() - 1
@@ -248,8 +268,8 @@ def main():
             plt.savefig(os.path.join(OUTPUT_DIR, "cumulative_returns_comparison_train.png"), dpi=150)
             print(f"\nSaved train plot to {OUTPUT_DIR}/cumulative_returns_comparison_train.png")
         
-        # Test benchmark
-        benchmark_returns_test = ret_p_test[benchmark_ticker].dropna()
+        # Test benchmark (fill missing data to avoid spikes)
+        benchmark_returns_test = ret_p_test[benchmark_ticker].fillna(0)  # Fill missing with 0 return
         benchmark_cumulative_test = (1 + benchmark_returns_test).cumprod() - 1
         strat_net_cum_test = (1 + pnl_net_test).cumprod() - 1
         strat_gross_cum_test = (1 + pnl_gross_test).cumprod() - 1

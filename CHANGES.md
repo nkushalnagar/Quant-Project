@@ -2,9 +2,9 @@
 
 ## Summary of Updates (Nov 25, 2024)
 
-### 1. Train/Test Split: 30/70 (Changed from 40/60)
+### 1. Train/Test Split: 70/30 (Changed from 30/70)
 - **File**: `config.py`
-- **Change**: `TRAIN_END_PCT = 0.3` (30% train, 70% test)
+- **Change**: `TRAIN_END_PCT = 0.7` (70% train, 30% test)
 
 ### 2. Weekly Cumulative Returns (Changed from Daily)
 - **Files**: `signal_generation.py`, `main.py`, `backtesting.py`
@@ -21,14 +21,14 @@
   - If ASML (leader) has cumulative return of +5% in week 10
   - This predicts NVDA (follower) performance in week 11
 
-### 4. Random Week Selection (Changed from Chronological)
-- **File**: `signal_generation.py` - new function `random_week_split()`
+### 4. Chronological Split (FIXED - was random, now chronological)
+- **File**: `main.py`
 - **Logic**:
-  - All weeks are randomly shuffled (seed=42 for reproducibility)
-  - 30% randomly selected for training
-  - Remaining 70% used for testing
-  - **Note**: This breaks time-series assumptions and may introduce look-ahead bias
-  - Useful for testing if relationships are time-independent
+  - First 70% of weeks used for training
+  - Last 30% of weeks used for testing
+  - **Avoids look-ahead bias** (no future data in training)
+  - Standard practice in quantitative finance
+  - Cumulative return plots are now meaningful (chronological order)
 
 ### 5. Performance Metrics Updated
 - **File**: `backtesting.py`
