@@ -2,7 +2,10 @@
 output/
 *.csv
 *.parquet
+
+# Ignore all PNGs except in examples/
 *.png
+!examples/*.png
 
 # Python
 __pycache__/

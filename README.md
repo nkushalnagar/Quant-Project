@@ -35,6 +35,18 @@ Week x:
 
 **This strategy is statistically significant and generates consistent alpha!**
 
+### Performance Charts
+
+**Training Period (2000-2017):**
+
+![Train Performance](examples/cumulative_returns_comparison_train.png)
+
+**Test Period (2017-2024):**
+
+![Test Performance](examples/cumulative_returns_comparison_test.png)
+
+The strategy consistently outperforms the market benchmark (VV) in the out-of-sample test period.
+
 ## 🏗️ Architecture
 
 ### Modular Structure
